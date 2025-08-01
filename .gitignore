@@ -1,0 +1,5 @@
+.sca/
+
+mongo-data/** 
+node_baseline_results.txt
+go_baseline_results.txt

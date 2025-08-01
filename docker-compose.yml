@@ -1,0 +1,84 @@
+# Define our custom network at the top level
+networks:
+  benchmark-net:
+    driver: bridge
+
+services:
+  mongo-db:
+    image: mongo:latest
+    container_name: mongo-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo-data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=benchmark
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: 
+      - benchmark-net
+
+  mongo-seeder:
+    build: ./mongo-seeder
+    container_name: mongo-seeder
+    depends_on:
+      mongo-db:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongo-db:27017/benchmark
+    networks: 
+      - benchmark-net
+
+  node-app:
+    build: ./node-app
+    container_name: node-app
+    ports:
+      - "8080:3000" 
+    depends_on:
+      mongo-db:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongo-db:27017/benchmark
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    networks: 
+      - benchmark-net
+
+  go-app:
+    build: ./go-app
+    container_name: go-app
+    ports:
+      - "8081:3001"
+    depends_on:
+      mongo-db:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongo-db:27017/benchmark
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    networks: 
+      - benchmark-net
+
+  k6-tester:
+    image: grafana/k6
+    container_name: k6-tester
+    volumes:
+      - ./k6-tester:/scripts
+    command: " " 
+    depends_on:
+      - node-app
+      - go-app
+    networks: 
+      - benchmark-net
+
+volumes:
+  mongo-data:
