@@ -68,17 +68,62 @@ services:
     networks: 
       - benchmark-net
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8088:8080" # Mapped to host 8088 to avoid conflict with node-app
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - benchmark-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-remote-write-receiver' 
+    networks:
+      - benchmark-net
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    ports:
+      - "3000:3000" # Mapped to host 3000
+    depends_on:
+      - prometheus
+    networks:
+      - benchmark-net
+    volumes:
+      - grafana-data:/var/lib/grafana
+
   k6-tester:
     image: grafana/k6
     container_name: k6-tester
     volumes:
       - ./k6-tester:/scripts
     command: " " 
+    environment:
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
     depends_on:
       - node-app
       - go-app
+      - prometheus
     networks: 
       - benchmark-net
 
 volumes:
   mongo-data:
+  prometheus-data:
+  grafana-data:
